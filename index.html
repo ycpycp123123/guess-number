@@ -38,30 +38,40 @@
       linear-gradient(170deg,var(--bg1) 0%,var(--bg2) 100%);
     background-attachment:fixed;
     color:var(--text);
-    overflow:hidden;
+    /* ⚠ 不要用 overflow:hidden。iOS Safari 的布局视口比可见区域高
+       （地址栏 + 底部工具栏约 100px），一旦锁死滚动，
+       底部的键盘就会被压在工具栏下面且永远滚不上来 —— 页面看着正常却没法玩。*/
+    overflow-x:hidden;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:none;
     touch-action:manipulation;
     user-select:none;
     -webkit-user-select:none;
   }
 
-  /* ---------- 布局：整屏不滚动 ---------- */
+  /* ---------- 布局 ---------- */
   .wrap{
-    position:fixed;
-    inset:0;
+    /* 用 min-height + dvh，而不是 position:fixed + inset:0。
+       dvh = 动态视口高度，会跟着 Safari 地址栏收放实时变化，
+       这样内容永远不会被工具栏盖住。100vh 是给老浏览器兜底。*/
+    min-height:100vh;
+    min-height:100dvh;
     display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:calc(env(safe-area-inset-top) + 10px) 14px calc(env(safe-area-inset-bottom) + 10px);
+    padding:calc(env(safe-area-inset-top) + 12px) 14px calc(env(safe-area-inset-bottom) + 18px);
   }
 
   .card{
+    /* 用 margin:auto 居中，而不是父级 align-items:center。
+       两者视觉一样，但内容超高时 margin:auto 还能滚到顶部，
+       align-items:center 会把顶部切掉且滚不上去。*/
+    margin:auto;
     width:100%;
     max-width:430px;
-    max-height:100%;
     display:flex;
     flex-direction:column;
     gap:clamp(10px,2.2vh,18px);
-    padding:clamp(14px,2.6vh,22px) clamp(14px,4vw,20px);
+    padding:clamp(12px,2.6vh,22px) clamp(14px,4vw,20px);
     border-radius:26px;
     background:var(--card);
     border:1px solid var(--line);
@@ -185,7 +195,7 @@
     margin-top:auto;
   }
   .key{
-    height:clamp(46px,8.4vh,64px);
+    height:clamp(44px,7.8vh,60px);
     border-radius:15px;
     border:1px solid var(--line);
     background:var(--key);
@@ -213,6 +223,29 @@
     border-color:var(--line);
     box-shadow:none;
     color:var(--muted);
+  }
+
+  /* ---------- 矮屏适配 ----------
+     iPhone SE(667)、iPhone 8 这类机器，Safari 里真正能用到的
+     高度只有 550px 左右。按比例缩一缩，保证最后一行「⌫ 0 确定」
+     一定落在屏幕内 —— 这一行按不到就等于游戏玩不了。 */
+  @media (max-height:740px){
+    .card{gap:9px;padding:14px 16px}
+    .key{height:50px}
+    .display{padding:10px 12px}
+    .display .num{font-size:46px}
+    .history{min-height:26px}
+  }
+  @media (max-height:640px){
+    .card{gap:7px;padding:12px 14px;border-radius:20px}
+    .key{height:42px;font-size:18px;border-radius:12px}
+    .key.ok{font-size:14px}
+    .display{padding:8px 10px}
+    .display .num{font-size:38px}
+    .msg{font-size:13px;min-height:1.3em}
+    .history{min-height:22px}
+    .sub{display:none}          /* 极矮屏先牺牲副标题 */
+    .meta{font-size:11px}
   }
 
   /* ---------- 结算层 ---------- */
