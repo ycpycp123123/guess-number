@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b1020">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>猜数字</title>
+<style>
+  :root{
+    --bg1:#0b1020;
+    --bg2:#151d3b;
+    --card:rgba(255,255,255,.055);
+    --line:rgba(255,255,255,.10);
+    --text:#e9edf9;
+    --muted:#8a93ad;
+    --low:#38bdf8;
+    --high:#fb923c;
+    --win:#4ade80;
+    --gold:#fbbf24;
+    --key:rgba(255,255,255,.075);
+    --keyActive:rgba(255,255,255,.18);
+    --radius:18px;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+
+  html,body{height:100%}
+
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB",
+                "Microsoft YaHei","Helvetica Neue",Helvetica,sans-serif;
+    background:
+      radial-gradient(120% 80% at 50% -10%, #24305e 0%, transparent 60%),
+      radial-gradient(90% 60% at 90% 110%, #2a1f4d 0%, transparent 55%),
+      linear-gradient(170deg,var(--bg1) 0%,var(--bg2) 100%);
+    background-attachment:fixed;
+    color:var(--text);
+    overflow:hidden;
+    touch-action:manipulation;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+
+  /* ---------- 布局：整屏不滚动 ---------- */
+  .wrap{
+    position:fixed;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:calc(env(safe-area-inset-top) + 10px) 14px calc(env(safe-area-inset-bottom) + 10px);
+  }
+
+  .card{
+    width:100%;
+    max-width:430px;
+    max-height:100%;
+    display:flex;
+    flex-direction:column;
+    gap:clamp(10px,2.2vh,18px);
+    padding:clamp(14px,2.6vh,22px) clamp(14px,4vw,20px);
+    border-radius:26px;
+    background:var(--card);
+    border:1px solid var(--line);
+    backdrop-filter:blur(22px) saturate(140%);
+    -webkit-backdrop-filter:blur(22px) saturate(140%);
+    box-shadow:0 24px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.09);
+  }
+
+  /* ---------- 顶部 ---------- */
+  .head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+  .title{font-size:clamp(19px,5.4vw,23px);font-weight:700;letter-spacing:.5px}
+  .sub{font-size:clamp(11.5px,3.3vw,13px);color:var(--muted);margin-top:3px;line-height:1.45}
+
+  .iconbtn{
+    flex:none;
+    width:38px;height:38px;
+    display:grid;place-items:center;
+    font-size:17px;
+    border-radius:12px;
+    border:1px solid var(--line);
+    background:var(--key);
+    color:var(--text);
+    cursor:pointer;
+    transition:transform .12s,background .18s;
+  }
+  .iconbtn:active{transform:scale(.9);background:var(--keyActive)}
+  .iconbtn.off{opacity:.4}
+
+  /* ---------- 数字显示 ---------- */
+  .display{
+    position:relative;
+    border-radius:var(--radius);
+    border:1.5px solid var(--line);
+    background:rgba(0,0,0,.22);
+    padding:clamp(12px,2.6vh,22px) 12px;
+    text-align:center;
+    transition:border-color .25s, box-shadow .3s, background .25s;
+  }
+  .display .num{
+    font-size:clamp(40px,15vw,60px);
+    font-weight:800;
+    line-height:1.05;
+    letter-spacing:1px;
+    font-variant-numeric:tabular-nums;
+    font-feature-settings:"tnum";
+    transition:transform .12s, color .25s;
+  }
+  .display .num.empty{color:rgba(255,255,255,.16)}
+  .num.pop{animation:pop .16s ease-out}
+  @keyframes pop{0%{transform:scale(1.14)}100%{transform:scale(1)}}
+
+  .display.low {border-color:rgba(56,189,248,.65); box-shadow:0 0 0 4px rgba(56,189,248,.10)}
+  .display.high{border-color:rgba(251,146,60,.65);  box-shadow:0 0 0 4px rgba(251,146,60,.10)}
+  .display.win {border-color:rgba(74,222,128,.75);  box-shadow:0 0 0 5px rgba(74,222,128,.14)}
+  .display.bad {animation:shake .38s cubic-bezier(.36,.07,.19,.97)}
+  @keyframes shake{
+    10%,90%{transform:translateX(-2px)}
+    20%,80%{transform:translateX(4px)}
+    30%,50%,70%{transform:translateX(-7px)}
+    40%,60%{transform:translateX(7px)}
+  }
+
+  /* ---------- 提示文字 ---------- */
+  .msg{
+    text-align:center;
+    font-size:clamp(13.5px,4vw,15.5px);
+    font-weight:600;
+    min-height:1.45em;
+    color:var(--muted);
+    transition:color .2s;
+  }
+  .msg.low{color:var(--low)}
+  .msg.high{color:var(--high)}
+  .msg.win{color:var(--win)}
+  .msg.err{color:#f87171}
+
+  /* ---------- 范围 / 次数 ---------- */
+  .meta{
+    display:flex;align-items:center;justify-content:center;gap:10px;
+    font-size:clamp(11.5px,3.3vw,13px);
+    color:var(--muted);
+  }
+  .meta b{color:var(--text);font-variant-numeric:tabular-nums}
+  .dot{opacity:.4}
+
+  /* ---------- 历史 ---------- */
+  .history{
+    display:flex;gap:6px;
+    overflow-x:auto;
+    min-height:30px;
+    padding:2px 1px;
+    scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
+  }
+  .history::-webkit-scrollbar{display:none}
+  .chip{
+    flex:none;
+    padding:4px 11px;
+    border-radius:999px;
+    font-size:13px;font-weight:700;
+    font-variant-numeric:tabular-nums;
+    border:1px solid transparent;
+    animation:chipIn .22s ease-out;
+  }
+  @keyframes chipIn{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}
+  .chip.low {color:var(--low); background:rgba(56,189,248,.12); border-color:rgba(56,189,248,.3)}
+  .chip.high{color:var(--high);background:rgba(251,146,60,.12); border-color:rgba(251,146,60,.3)}
+  .chip.win {color:var(--win); background:rgba(74,222,128,.14); border-color:rgba(74,222,128,.35)}
+  .history:empty::after{
+    content:"猜过的数字会显示在这里";
+    color:rgba(255,255,255,.24);
+    font-size:12px;
+    padding:5px 2px;
+  }
+
+  /* ---------- 键盘 ---------- */
+  .pad{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:clamp(6px,1.5vw,9px);
+    margin-top:auto;
+  }
+  .key{
+    height:clamp(46px,8.4vh,64px);
+    border-radius:15px;
+    border:1px solid var(--line);
+    background:var(--key);
+    color:var(--text);
+    font-size:clamp(19px,5.6vw,23px);
+    font-weight:600;
+    font-variant-numeric:tabular-nums;
+    display:grid;place-items:center;
+    cursor:pointer;
+    transition:transform .09s, background .15s, opacity .2s;
+  }
+  .key:active{transform:scale(.94);background:var(--keyActive)}
+  .key.del{font-size:clamp(17px,5vw,20px);color:var(--muted)}
+  .key.ok{
+    background:linear-gradient(160deg,#3b82f6,#2563eb);
+    border-color:rgba(255,255,255,.2);
+    box-shadow:0 6px 18px rgba(37,99,235,.35);
+    font-size:clamp(15px,4.4vw,17px);
+  }
+  .key.ok:active{background:linear-gradient(160deg,#2563eb,#1d4ed8)}
+  .key:disabled{opacity:.32;cursor:default}
+  /* 确定键禁用时别留一坨半透明的蓝，改成中性灰，更像「还按不了」 */
+  .key.ok:disabled{
+    background:rgba(255,255,255,.05);
+    border-color:var(--line);
+    box-shadow:none;
+    color:var(--muted);
+  }
+
+  /* ---------- 结算层 ---------- */
+  .over{
+    position:fixed;inset:0;
+    display:none;
+    place-items:center;
+    padding:22px;
+    background:rgba(6,9,20,.72);
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    z-index:20;
+  }
+  .over.show{display:grid;animation:fadeIn .25s}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+  .over .box{
+    width:100%;max-width:330px;
+    text-align:center;
+    padding:30px 22px 24px;
+    border-radius:24px;
+    background:linear-gradient(165deg,rgba(35,45,80,.96),rgba(20,26,48,.98));
+    border:1px solid rgba(255,255,255,.13);
+    box-shadow:0 26px 70px rgba(0,0,0,.6);
+    animation:boxIn .34s cubic-bezier(.2,1.3,.5,1);
+  }
+  @keyframes boxIn{from{opacity:0;transform:translateY(20px) scale(.93)}to{opacity:1;transform:none}}
+
+  .over .emoji{font-size:46px;line-height:1;margin-bottom:12px}
+  .over .big{font-size:clamp(19px,5.4vw,22px);font-weight:800;margin-bottom:8px}
+  .over .txt{font-size:14px;color:var(--muted);line-height:1.6}
+  .over .txt b{color:var(--gold);font-size:17px;font-variant-numeric:tabular-nums}
+
+  .again{
+    margin-top:20px;width:100%;height:52px;
+    border:none;border-radius:15px;
+    background:linear-gradient(160deg,#3b82f6,#2563eb);
+    color:#fff;font-size:16px;font-weight:700;
+    cursor:pointer;
+    box-shadow:0 10px 24px rgba(37,99,235,.4);
+    transition:transform .1s;
+  }
+  .again:active{transform:scale(.96)}
+
+  canvas#confetti{
+    position:fixed;inset:0;
+    width:100%;height:100%;
+    pointer-events:none;
+    display:none;
+    z-index:30;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="card">
+
+    <div class="head">
+      <div>
+        <div class="title">猜数字</div>
+        <div class="sub">1 ~ 100 之间，我已经想好一个数</div>
+      </div>
+      <button class="iconbtn" id="soundBtn" aria-label="音效开关">🔊</button>
+    </div>
+
+    <div class="display" id="display">
+      <div class="num empty" id="num">--</div>
+    </div>
+
+    <div class="msg" id="msg">开始猜吧</div>
+
+    <div class="meta">
+      <span>范围 <b id="rangeTxt">1 ~ 100</b></span>
+      <span class="dot">·</span>
+      <span>已猜 <b id="cnt">0</b> 次</span>
+    </div>
+
+    <div class="history" id="history"></div>
+
+    <div class="pad" id="pad">
+      <button class="key" data-k="1">1</button>
+      <button class="key" data-k="2">2</button>
+      <button class="key" data-k="3">3</button>
+      <button class="key" data-k="4">4</button>
+      <button class="key" data-k="5">5</button>
+      <button class="key" data-k="6">6</button>
+      <button class="key" data-k="7">7</button>
+      <button class="key" data-k="8">8</button>
+      <button class="key" data-k="9">9</button>
+      <button class="key del" data-k="del">⌫</button>
+      <button class="key" data-k="0">0</button>
+      <button class="key ok" data-k="ok">确定</button>
+    </div>
+
+  </div>
+</div>
+
+<div class="over" id="over">
+  <div class="box">
+    <div class="emoji" id="ovEmoji">🎉</div>
+    <div class="big" id="ovBig">这么快，你真棒</div>
+    <div class="txt" id="ovTxt"></div>
+    <button class="again" id="againBtn">再来一局</button>
+  </div>
+</div>
+
+<canvas id="confetti"></canvas>
+
+<script>
+(function(){
+  'use strict';
+
+  var MIN = 1, MAX = 100;
+
+  // ---------- 音效（Web Audio，无需任何素材文件）----------
+  var soundOn = true;
+  var actx = null;
+
+  function beep(freq, dur, type, vol){
+    if(!soundOn) return;
+    try{
+      if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)();
+      if(actx.state === 'suspended') actx.resume();
+      var o = actx.createOscillator(), g = actx.createGain();
+      o.type = type || 'square';
+      o.frequency.value = freq;
+      g.gain.value = vol || 0.045;
+      o.connect(g); g.connect(actx.destination);
+      var t = actx.currentTime;
+      g.gain.setValueAtTime(g.gain.value, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.start(t); o.stop(t + dur);
+    }catch(e){}
+  }
+
+  function buzz(ms){ if(navigator.vibrate) try{ navigator.vibrate(ms); }catch(e){} }
+
+  // ---------- 游戏状态 ----------
+  var target, count, low, high, input, over, guessed;
+
+  var $num      = document.getElementById('num');
+  var $display  = document.getElementById('display');
+  var $msg      = document.getElementById('msg');
+  var $cnt      = document.getElementById('cnt');
+  var $range    = document.getElementById('rangeTxt');
+  var $history  = document.getElementById('history');
+  var $over     = document.getElementById('over');
+  var $ovEmoji  = document.getElementById('ovEmoji');
+  var $ovBig    = document.getElementById('ovBig');
+  var $ovTxt    = document.getElementById('ovTxt');
+  var $confetti = document.getElementById('confetti');
+
+  function reset(){
+    target  = Math.floor(Math.random() * MAX) + MIN;   // 对应 C++ 的 rand()%100+1
+    count   = 0;
+    low     = MIN;
+    high    = MAX;
+    input   = '';
+    over    = false;
+    guessed = {};
+
+    $history.innerHTML = '';
+    $over.classList.remove('show');
+    $confetti.style.display = 'none';
+    $display.className = 'display';
+    $msg.className = 'msg';
+    $msg.textContent = '开始猜吧';
+    render();
+  }
+
+  function render(){
+    // 数字显示
+    if(input === ''){
+      $num.textContent = '--';
+      $num.classList.add('empty');
+    }else{
+      $num.textContent = input;
+      $num.classList.remove('empty');
+    }
+    $cnt.textContent = count;
+    $range.textContent = low + ' ~ ' + high;
+
+    // 输入合法性 -> 控制确定键
+    var v = parseInt(input, 10);
+    var ok = !over && input !== '' && v >= MIN && v <= MAX && !guessed[v];
+    document.querySelector('.key.ok').disabled = !ok;
+  }
+
+  function setDisplay(state){
+    $display.className = 'display' + (state ? ' ' + state : '');
+  }
+
+  function setMsg(text, state){
+    $msg.textContent = text;
+    $msg.className = 'msg' + (state ? ' ' + state : '');
+  }
+
+  function typeDigit(d){
+    if(over) return;
+    if(input.length >= 3) return;
+    if(input === '' && d === '0') return;      // 不允许前导 0
+    input += d;
+    if(parseInt(input, 10) > MAX) input = String(MAX);
+    $num.textContent = input;
+    $num.classList.remove('empty');
+    $num.classList.remove('pop'); void $num.offsetWidth; $num.classList.add('pop');
+    beep(880, 0.05, 'square', 0.03);
+    render();
+  }
+
+  function delDigit(){
+    if(over || input === '') return;
+    input = input.slice(0, -1);
+    beep(520, 0.05, 'square', 0.03);
+    render();
+  }
+
+  function addChip(val, cls){
+    var s = document.createElement('span');
+    s.className = 'chip ' + cls;
+    s.textContent = val;
+    $history.appendChild(s);
+    $history.scrollLeft = $history.scrollWidth;
+  }
+
+  function submit(){
+    if(over) return;
+    var v = parseInt(input, 10);
+
+    // ---- 输入校验 ----
+    if(input === '' || isNaN(v)){
+      setMsg('先输入一个数字', 'err'); buzz(30); return;
+    }
+    if(v < MIN || v > MAX){
+      setMsg('只能猜 ' + MIN + ' ~ ' + MAX + ' 之间的数', 'err');
+      setDisplay('bad'); setTimeout(function(){ setDisplay(''); }, 400);
+      buzz([20,40,20]);
+      return;
+    }
+    if(guessed[v]){
+      setMsg(v + ' 已经猜过了，换一个', 'err');
+      setDisplay('bad'); setTimeout(function(){ setDisplay(''); }, 400);
+      buzz(30);
+      return;
+    }
+
+    guessed[v] = true;
+    count++;                      // 总次数：这一版按“猜了几次”计数
+    input = '';
+
+    // ---- 核心逻辑：与 C++ 完全一致，只是计数改成总次数 ----
+    if(v === target){
+      addChip(v, 'win');
+      over = true;
+      setDisplay('win');
+      buzz([40, 60, 40, 60, 120]);
+
+      var fast = count <= 3;
+      setMsg(fast ? '这么快，你真棒' : '终于猜对了，不容易啊', 'win');
+
+      $ovEmoji.textContent = fast ? '🎉' : '😌';
+      $ovBig.textContent   = fast ? '这么快，你真棒' : '终于猜对了，不容易啊';
+      $ovTxt.innerHTML     = '答案是 <b>' + target + '</b><br>你一共猜了 <b>' + count + '</b> 次';
+
+      if(fast){ winSound(); fireConfetti(); }
+      else    { okSound(); }
+
+      setTimeout(function(){ $over.classList.add('show'); }, 620);
+
+    }else if(v < target){
+      low = Math.max(low, v + 1);
+      addChip(v, 'low');
+      setDisplay('low');
+      setMsg('猜小了，重来', 'low');
+      beep(300, 0.14, 'square', 0.05);
+      buzz(35);
+
+    }else{
+      high = Math.min(high, v - 1);
+      addChip(v, 'high');
+      setDisplay('high');
+      setMsg('猜大了，继续', 'high');
+      beep(240, 0.14, 'square', 0.05);
+      buzz(35);
+    }
+
+    render();
+  }
+
+  function okSound(){
+    beep(660,0.1,'sine',0.06);
+    setTimeout(function(){ beep(880,0.18,'sine',0.06); }, 110);
+  }
+  function winSound(){
+    [523,659,784,1047].forEach(function(f,i){
+      setTimeout(function(){ beep(f, 0.16, 'sine', 0.065); }, i * 105);
+    });
+  }
+
+  // ---------- 撒花 ----------
+  function fireConfetti(){
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var c = $confetti, ctx = c.getContext('2d');
+    c.width = innerWidth * dpr; c.height = innerHeight * dpr;
+    c.style.display = 'block';
+
+    var colors = ['#fbbf24','#4ade80','#38bdf8','#f472b6','#a78bfa','#fb923c'];
+    var ps = [];
+    for(var i=0;i<130;i++){
+      ps.push({
+        x: Math.random()*c.width,
+        y: -Math.random()*c.height*0.6,
+        vx: (Math.random()-0.5)*4.5*dpr,
+        vy: (2+Math.random()*4)*dpr,
+        s: (5+Math.random()*7)*dpr,
+        r: Math.random()*6.28,
+        vr: (Math.random()-0.5)*0.28,
+        col: colors[(Math.random()*colors.length)|0]
+      });
+    }
+    var t = 0;
+    (function loop(){
+      t++;
+      ctx.clearRect(0,0,c.width,c.height);
+      for(var i=0;i<ps.length;i++){
+        var p = ps[i];
+        p.x += p.vx; p.y += p.vy; p.vy += 0.06*dpr; p.r += p.vr;
+        ctx.save();
+        ctx.translate(p.x,p.y); ctx.rotate(p.r);
+        ctx.fillStyle = p.col;
+        ctx.fillRect(-p.s/2, -p.s/2, p.s, p.s*0.62);
+        ctx.restore();
+      }
+      if(t < 240) requestAnimationFrame(loop);
+      else { ctx.clearRect(0,0,c.width,c.height); c.style.display='none'; }
+    })();
+  }
+
+  // ---------- 事件绑定 ----------
+  document.getElementById('pad').addEventListener('click', function(e){
+    var btn = e.target.closest('.key');
+    if(!btn || btn.disabled) return;
+    var k = btn.dataset.k;
+    if(k === 'del')      delDigit();
+    else if(k === 'ok')  submit();
+    else                 typeDigit(k);
+  });
+
+  document.getElementById('againBtn').addEventListener('click', reset);
+  document.getElementById('soundBtn').addEventListener('click', function(){
+    soundOn = !soundOn;
+    this.textContent = soundOn ? '🔊' : '🔇';
+    this.classList.toggle('off', !soundOn);
+    if(soundOn) beep(880, 0.08, 'sine', 0.05);
+  });
+
+  // 实体键盘也能玩（在电脑上打开时）
+  addEventListener('keydown', function(e){
+    if(e.key >= '0' && e.key <= '9')      typeDigit(e.key);
+    else if(e.key === 'Backspace')        delDigit();
+    else if(e.key === 'Enter')            submit();
+    else if(e.key === 'Escape')           reset();
+  });
+
+  // 防止双击缩放 / 长按选择
+  document.addEventListener('dblclick', function(e){ e.preventDefault(); }, {passive:false});
+  document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+
+  reset();
+})();
+</script>
+</body>
+</html>
